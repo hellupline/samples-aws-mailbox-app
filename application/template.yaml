@@ -1,0 +1,78 @@
+---
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+
+Description: 'Mailbox Application'
+
+Metadata: {}
+
+Parameters: {}
+
+Mappings: {}
+
+Conditions: {}
+
+Globals:
+    Function:
+        Runtime: python3.7
+        MemorySize: 128
+        Timeout: 3
+
+
+Resources:
+    InboundHandler:
+        Type: AWS::Serverless::Function
+        Properties:
+            CodeUri: mailbox_handlers
+            Handler: inbound_handler.lambda_handler
+            Events:
+                Inbound:
+                    Type: S3
+                    Properties:
+                        Filter: {S3Key: {Rules: [{Name: 'prefix', Value: 'TMP/email_in'}]}}
+                        Bucket: !Ref Bucket
+                        Events: s3:ObjectCreated:*
+
+    ReceiptRuleSet:
+        Type: AWS::SES::ReceiptRuleSet
+
+    ReceiptRule:
+        Type: AWS::SES::ReceiptRule
+        Properties:
+            RuleSetName: !Ref ReceiptRuleSet
+            Rule:
+                Name: Inbound
+                Enabled: true
+                Actions:
+                  - S3Action: {BucketName: !Ref Bucket, ObjectKeyPrefix: 'TMP/email_in'}
+
+    Bucket:
+        Type: AWS::S3::Bucket
+        DeletionPolicy: Retain
+        Properties:
+            AccessControl: Private
+            PublicAccessBlockConfiguration:
+                BlockPublicAcls: True
+                BlockPublicPolicy: True
+                IgnorePublicAcls: True
+                RestrictPublicBuckets: True
+
+    BucketPolicy:
+        Type: AWS::S3::BucketPolicy
+        Properties:
+            Bucket: !Ref Bucket
+            PolicyDocument:
+                Statement:
+                  - Sid: 'allow-s3s-puts'
+                    Principal: {'Service': 'ses.amazonaws.com'}
+                    Effect: Allow
+                    Action:
+                      - 's3:PutObject'
+                    Resource:
+                      - !Sub '${Bucket.Arn}/TMP/email_in/*'
+                    Condition:
+                        StringEquals:
+                            'aws:Referer': !Ref AWS::AccountId
+
+
+Outputs: {}
