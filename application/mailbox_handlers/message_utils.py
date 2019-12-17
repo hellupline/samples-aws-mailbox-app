@@ -25,6 +25,10 @@ class Message:  # pylint: disable=too-many-instance-attributes
     @classmethod
     def from_bytes(cls, data: bytes):
         m = email.message_from_bytes(data, policy=email.policy.default)
+        cls.from_email(m)
+
+    @classmethod
+    def from_email(cls, m: email.message.Message):
         return Message(
             message_id=m.get("message-id", ""),
             in_reply_to=m.get("in-reply-to", ""),
